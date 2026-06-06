@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>HONEYPOT // Threat Operations Center</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#121212;--bg2:#1a1a1a;--border:#333;--text:#ccc;--dim:#777;--accent:#888;--red:#e05555;--orange:#c9a033;--purple:#b89dd0;--green:#4caf50;--teal:#4db6ac}
+body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.5;overflow-x:hidden}
+a{color:var(--accent);text-decoration:none}
+h1,h2,h3,h4{font-weight:500;color:var(--text)}
+.grid{display:grid;grid-template-columns:220px 1fr;height:100vh;overflow:hidden}
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);padding:16px;overflow-y:auto}
+.sidebar h1{font-size:13px;font-weight:700;color:var(--dim);margin-bottom:16px;letter-spacing:1px}
+.sidebar h1 span{color:var(--green)}
+.sensor-block{margin-bottom:14px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px}
+.sensor-block h3{font-size:11px;font-weight:700;margin-bottom:4px}
+.sensor-block .label{color:var(--dim);font-size:10px}
+.sensor-block .ports{color:var(--orange);font-size:10px}
+.sensor-block p{font-size:10px;color:var(--dim);margin-top:4px;line-height:1.4}
+.main{padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.scorecard-row{display:grid;grid-template-columns:1fr;gap:8px;align-items:stretch}
+.scorecard-inner{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:6px 10px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.card .value{font-size:22px;font-weight:700;color:var(--accent);line-height:1}
+.card .label{font-size:8px;color:var(--dim);text-transform:uppercase;letter-spacing:0.5px}
+.map-row{display:grid;grid-template-columns:3fr 1fr;gap:8px}
+.map-panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.map-panel #map{height:260px;width:100%}
+.telemetry-panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.telemetry-inner{height:260px}
+.port-kpi-panel{padding:8px;overflow-y:auto}
+.port-kpi-panel h4{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.port-kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.port-kpi-card{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px 10px;cursor:pointer;transition:all 0.15s;position:relative;overflow:hidden}
+.port-kpi-card:hover{background:var(--bg2);transform:translateY(-1px)}
+.port-kpi-card.active{border-width:2px;background:rgba(136,136,136,0.06)}
+.port-kpi-card .bd{position:absolute;top:0;left:0;width:3px;height:100%}
+.port-kpi-card.ssh .bd{background:var(--red)}
+.port-kpi-card.telnet .bd{background:var(--orange)}
+.port-kpi-card.http .bd{background:var(--purple)}
+.port-kpi-card.smb .bd{background:var(--orange)}
+.port-kpi-card.mssql .bd{background:var(--accent)}
+.port-kpi-card.mysql .bd{background:var(--green)}
+.port-kpi-card .port-num{font-size:13px;font-weight:700;color:var(--text);margin-bottom:1px}
+.port-kpi-card .proto-tag{font-size:8px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+.port-kpi-card .count-num{font-size:18px;font-weight:700;margin-top:2px}
+.port-kpi-card.ssh .count-num{color:var(--red)}
+.port-kpi-card.telnet .count-num{color:var(--orange)}
+.port-kpi-card.http .count-num{color:var(--purple)}
+.port-kpi-card.smb .count-num{color:var(--orange)}
+.port-kpi-card.mssql .count-num{color:var(--accent)}
+.port-kpi-card.mysql .count-num{color:var(--green)}
+.filter-bar{display:none;align-items:center;gap:6px;padding:4px 8px;background:var(--bg);border:1px solid var(--accent);border-radius:4px;font-size:10px;color:var(--text);margin-top:6px}
+.filter-bar.visible{display:flex}
+.filter-bar .clear-btn{background:var(--border);border:none;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 8px;border-radius:3px;cursor:pointer}
+.filter-bar .clear-btn:hover{background:var(--red);color:#fff}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.panel-header{font-size:11px;font-weight:700;padding:4px 12px;border-bottom:1px solid var(--border);background:rgba(0,0,0,0.2);text-transform:uppercase;letter-spacing:1px;display:flex;justify-content:space-between;align-items:center}
+.panel-header .more-btn{font-size:11px;background:none;border:1px solid var(--border);color:var(--dim);cursor:pointer;padding:0 6px;border-radius:3px;font-family:inherit;line-height:18px;transition:all 0.15s}
+.panel-header .more-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.terminal{height:280px;overflow-y:auto;padding:8px;font-size:10px;line-height:1.6}
+.terminal .line{padding:2px 4px;white-space:nowrap;border-bottom:1px solid rgba(48,54,61,0.12);cursor:pointer;transition:background 0.1s}
+.terminal .line:hover{background:rgba(136,136,136,0.08)}
+.terminal .ts{color:var(--dim)}
+.terminal .cred{color:var(--red);font-weight:700}
+.terminal .cmd{color:var(--teal)}
+.terminal .proto-tag{font-size:9px;padding:1px 4px;border-radius:2px;margin-right:4px;text-transform:uppercase}
+.proto-tag.ssh{background:rgba(248,81,73,0.2);color:var(--red)}
+.proto-tag.telnet{background:rgba(210,153,34,0.2);color:var(--orange)}
+.proto-tag.smb{background:rgba(210,153,34,0.2);color:var(--orange)}
+.proto-tag.mssql{background:rgba(136,136,136,0.2);color:var(--accent)}
+.proto-tag.mysql{background:rgba(63,185,80,0.2);color:var(--green)}
+.proto-tag.http{background:rgba(210,168,255,0.2);color:var(--purple)}
+.svc-table{max-height:280px;overflow-y:auto;font-size:9px}
+.svc-table table{width:100%;border-collapse:collapse;font-family:inherit}
+.svc-table thead{position:sticky;top:0;z-index:2}
+.svc-table th{text-align:left;padding:3px 6px;background:rgba(0,0,0,0.35);border-bottom:1px solid var(--border);color:var(--dim);font-size:8px;text-transform:uppercase;letter-spacing:0.5px;font-family:inherit;white-space:nowrap}
+.svc-table td{padding:3px 6px;border-bottom:1px solid rgba(48,54,61,0.3);font-size:9px;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.svc-table tbody tr{cursor:pointer;transition:background 0.1s}
+.svc-table tbody tr:hover{background:rgba(136,136,136,0.06)}
+.svc-table .ts-cell{color:var(--dim);width:75px}
+.svc-table .ip-cell{color:var(--text);max-width:120px}
+.svc-table .svc-cell{color:var(--orange);max-width:80px}
+.svc-table .pay-cell{color:var(--teal);max-width:180px}
+.svc-table .uri-cell{color:var(--purple);max-width:200px}
+.svc-table .tls-cell{color:var(--orange);max-width:160px}
+.heatmap-list{font-size:10px;padding:4px 6px}
+.heatmap-list .item{padding:2px 4px;border-bottom:1px solid rgba(48,54,61,0.2);display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:background 0.1s;white-space:nowrap;overflow:hidden}
+.heatmap-list .item:hover{background:rgba(136,136,136,0.08)}
+.heatmap-list .item span:first-child{text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+.heatmap-list .count{color:var(--red);font-weight:700;margin-left:8px;flex-shrink:0}
+.sticky-header{position:sticky;top:0;background:var(--bg2);border-bottom:1px solid var(--border);color:var(--dim);font-size:9px;text-transform:uppercase;letter-spacing:1px;z-index:2;padding:3px 4px!important;font-weight:700}
+.ip-tag{font-size:8px;font-weight:700;margin-left:4px;padding:0 3px;border-radius:2px}
+.ip-tag.CLOUD{color:var(--accent);background:rgba(136,136,136,0.12)}
+.ip-tag.VPN{color:var(--purple);background:rgba(210,168,255,0.12)}
+.ip-tag.RESIDENTIAL{color:var(--dim)}
+.status-bar{display:flex;gap:12px;align-items:center;font-size:10px;color:var(--dim)}
+.status-dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:4px}
+.status-dot.green{background:var(--green)}
+.status-dot.red{background:var(--red)}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.map-tip{background:var(--bg2)!important;border:1px solid var(--border)!important;border-radius:3px!important;color:var(--text)!important;font-family:'JetBrains Mono',monospace!important;font-size:9px!important;padding:2px 6px!important;box-shadow:none!important}
+.leaflet-tooltip-top.map-tip:before{border-top-color:var(--border)!important}
+.pulse-dot{animation:dot-pulse 2.5s ease-in-out infinite}
+@keyframes dot-pulse{0%,100%{opacity:0.2}50%{opacity:0.8}}
+
+#drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;display:none;cursor:pointer}
+#drawer-overlay.open{display:block}
+#forensic-drawer{position:fixed;top:0;right:0;width:520px;max-width:100vw;height:100vh;background:var(--bg2);border-left:1px solid var(--border);z-index:1000;transform:translateX(100%);transition:transform 0.3s ease;display:flex;flex-direction:column;box-shadow:-8px 0 30px rgba(0,0,0,0.6)}
+#forensic-drawer.open{transform:translateX(0)}
+.drawer-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);background:rgba(0,0,0,0.2)}
+.drawer-header h2{font-size:13px;font-weight:700;color:var(--accent);border:none;margin:0;padding:0;letter-spacing:1px}
+.drawer-close{background:none;border:1px solid var(--border);color:var(--dim);font-size:18px;width:28px;height:28px;cursor:pointer;border-radius:4px;display:flex;align-items:center;justify-content:center;transition:all 0.15s}
+.drawer-close:hover{background:var(--red);color:#fff;border-color:var(--red)}
+.drawer-body{padding:16px;overflow-y:auto;flex:1}
+.drawer-section{margin-bottom:16px}
+.drawer-section h4{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.drawer-section .kv{display:flex;gap:6px;margin-bottom:4px;font-size:10px}
+.drawer-section .kv .key{color:var(--dim);min-width:90px}
+.drawer-section .kv .val{color:var(--text);word-break:break-all}
+.drawer-codeblock{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px 10px;font-size:10px;line-height:1.6;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;color:var(--teal)}
+.drawer-codeblock.payload{color:var(--orange);max-height:400px}
+.drawer-codeblock .entry{margin-bottom:4px;padding-bottom:4px;border-bottom:1px dashed rgba(48,54,61,0.3)}
+.drawer-codeblock .entry .ts{color:var(--dim)}
+.drawer-asn .kv .key{min-width:60px}
+
+#bulk-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1999;display:none;cursor:pointer}
+#bulk-overlay.open{display:block}
+#bulk-panel{position:fixed;top:0;right:0;width:90vw;max-width:1100px;height:100vh;background:var(--bg2);border-left:1px solid var(--border);z-index:2000;transform:translateX(100%);transition:transform 0.3s ease;display:flex;flex-direction:column;box-shadow:-8px 0 40px rgba(0,0,0,0.6)}
+#bulk-panel.open{transform:translateX(0)}
+#bulk-body{padding:12px;overflow-y:auto;flex:1;font-size:9px}
+#bulk-body .bulk-table{width:100%;border-collapse:collapse;font-family:inherit}
+#bulk-body .bulk-table th{text-align:left;padding:3px 6px;background:rgba(0,0,0,0.35);border-bottom:1px solid var(--border);color:var(--dim);font-size:8px;text-transform:uppercase;letter-spacing:0.5px;font-family:inherit;white-space:nowrap;position:sticky;top:0}
+#bulk-body .bulk-table td{padding:3px 6px;border-bottom:1px solid rgba(48,54,61,0.3);font-size:9px;font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#bulk-body .bulk-table tbody tr:hover{background:rgba(136,136,136,0.06)}
+#bulk-body .bulk-table .b-ts{color:var(--dim);width:85px}
+#bulk-body .bulk-table .b-ip{color:var(--text);max-width:130px}
+#bulk-body .bulk-table .b-src{color:var(--accent);width:70px}
+#bulk-body .bulk-table .b-detail{color:var(--teal);max-width:400px}
+
+#sys-metrics{position:fixed;bottom:8px;left:8px;z-index:500;display:flex;gap:6px}
+.sys-metric{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:9px;color:var(--dim);display:flex;align-items:center;gap:4px}
+.sys-metric .val{font-weight:700;font-size:10px}
+.sys-metric.cpu .val{color:var(--accent)}
+.sys-metric.mem .val{color:var(--green)}
+.sys-info-box{display:flex;gap:10px;padding:12px;margin-bottom:14px;background:linear-gradient(135deg,rgba(136,136,136,0.06),rgba(136,136,136,0.03));border:1px solid rgba(136,136,136,0.12);border-radius:6px;position:relative;overflow:hidden}
+.sys-info-box::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:linear-gradient(180deg,var(--accent),var(--dim))}
+.sys-info-icon{font-size:16px;color:var(--accent);line-height:1;flex-shrink:0}
+.sys-info-body{flex:1;min-width:0}
+.sys-info-desc{font-size:9px;color:var(--dim);line-height:1.5;margin-bottom:6px}
+.sys-info-stats{display:flex;gap:6px;font-size:9px;color:var(--dim);flex-wrap:wrap}
+.sys-info-stats b{font-weight:700}
+</style>
+</head>
+<body>
+<div class="grid">
+<aside class="sidebar">
+<h1>&#9608; THREAT <span>OPS</span></h1>
+<div class="sys-info-box">
+<div class="sys-info-body">
+<div class="sys-info-desc">A live Ubuntu VPS honeypot capturing real-time internet-wide exploit attempts, brute-force campaigns, and malware stagers across SSH, Telnet, SMB, MSSQL, MySQL, and HTTP attack surfaces.</div>
+</div>
+</div>
+<div class="sensor-block">
+<h3 style="color:var(--red)">Cowrie Security Boundary</h3>
+<div class="label">SSH/Telnet Interactive Honeypot</div>
+<div class="ports">BIND: :22&#8594;2222 :23&#8594;2223</div>
+<p>Emulates Debian/Ubuntu shells. Captures brute-force credentials, interactive terminal commands, and malware download attempts.</p>
+</div>
+<div class="sensor-block">
+<h3 style="color:var(--orange)">Dionaea Malware Ingestion Matrix</h3>
+<div class="label">Network Service Emulation Trap</div>
+<div class="ports">BIND: :445&#8594;4545 :1433&#8594;14433 :3306&#8594;33306</div>
+<p>Simulates vulnerable Windows SMB, MSSQL, and MySQL daemons. Captures exploit payloads and shellcode stagers.</p>
+</div>
+<div class="sensor-block">
+<h3 style="color:var(--purple)">Nginx Enterprise Web Edge Trap</h3>
+<div class="label">HTTP Application-Layer Trap</div>
+<div class="ports">BIND: :80 :443</div>
+<p>Transparently intercepts HTTP/HTTPS scanner traffic. Routes malicious URI patterns into forensic signature logs with TLS handshake telemetry. Serves decoy SSL cert to raw IP probes.</p>
+</div>
+</aside>
+<main class="main">
+<div class="scorecard-row">
+<div class="scorecard-inner" id="scorecard">
+<div class="card"><div class="value" id="sc-total">0</div><div class="label">TOTAL</div></div>
+<div class="card"><div class="value" id="sc-unique">0</div><div class="label">UNIQUE IPs</div></div>
+<div class="card"><div class="value" id="sc-exploits">0</div><div class="label">WEB EXPLOITS</div></div>
+<div class="card"><div class="value" id="sc-range">48h</div><div class="label">RANGE</div></div>
+</div>
+</div>
+<div class="map-row">
+<div class="map-panel">
+<div class="panel-header">&#9673; Global Threat Cartography</div>
+<div id="map"></div>
+</div>
+<div class="telemetry-panel">
+<div class="panel-header">&#9731; Port Telemetry</div>
+<div class="telemetry-inner">
+<div class="port-kpi-panel">
+<div class="port-kpi-grid" id="port-kpi-grid">
+<div class="port-kpi-card ssh active" data-port="22" data-color="var(--red)"><div class="bd"></div><div class="port-num">SSH (22)</div><div class="count-num" id="kpi-ssh">0</div></div>
+<div class="port-kpi-card telnet" data-port="23" data-color="var(--orange)"><div class="bd"></div><div class="port-num">TELNET (23)</div><div class="count-num" id="kpi-telnet">0</div></div>
+<div class="port-kpi-card http" data-port="80" data-color="var(--purple)"><div class="bd"></div><div class="port-num">HTTP (80)</div><div class="count-num" id="kpi-http">0</div></div>
+<div class="port-kpi-card smb" data-port="445" data-color="var(--orange)"><div class="bd"></div><div class="port-num">SMB (445)</div><div class="count-num" id="kpi-smb">0</div></div>
+<div class="port-kpi-card mssql" data-port="1433" data-color="var(--accent)"><div class="bd"></div><div class="port-num">MSSQL (1433)</div><div class="count-num" id="kpi-mssql">0</div></div>
+<div class="port-kpi-card mysql" data-port="3306" data-color="var(--green)"><div class="bd"></div><div class="port-num">MySQL (3306)</div><div class="count-num" id="kpi-mysql">0</div></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="row2">
+<div class="panel">
+<div class="panel-header">&#9679; Cowrie Terminal <button class="more-btn" onclick="loadMore()" title="Load 1000 rows">&rarr;</button></div>
+<div class="terminal" id="terminal"><div class="line" style="color:var(--dim);cursor:default">[Loading historical data...]</div></div>
+</div>
+<div class="panel">
+<div class="panel-header">&#9830; Brute-Force Credential Directory</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;height:280px">
+<div class="heatmap-list" style="border-right:1px solid var(--border);overflow-y:auto" id="creds-list"><div style="color:var(--dim)">Loading...</div></div>
+<div class="heatmap-list" style="overflow-y:auto" id="ipbrute-list"><div style="color:var(--dim)">Loading...</div></div>
+</div>
+</div>
+</div>
+<div class="row2">
+<div class="panel">
+<div class="panel-header">&#9762; Dionaea Service Exploitations <button class="more-btn" onclick="loadMore()" title="Load 1000 rows">&rarr;</button></div>
+<div class="svc-table" id="dionaea-svc">
+<table>
+<thead><tr><th>TIMESTAMP</th><th>ATTACKING IP</th><th>TARGET SERVICE</th><th>PAYLOAD DETAILS</th></tr></thead>
+<tbody id="dionaea-tbody"><tr><td colspan="4" style="color:var(--dim);text-align:center">No exploit payloads intercepted</td></tr></tbody>
+</table>
+</div>
+</div>
+<div class="panel">
+<div class="panel-header">&#127758; Nginx Edge Web Violations <button class="more-btn" onclick="loadMore()" title="Load 1000 rows">&rarr;</button></div>
+<div class="svc-table" id="nginx-svc">
+<table>
+<thead><tr><th>TIMESTAMP</th><th>ATTACKING IP</th><th>EXPLOIT VECTOR / TARGET URI</th><th>CIPHER PROFILE</th></tr></thead>
+<tbody id="nginx-tbody"><tr><td colspan="4" style="color:var(--dim);text-align:center">No web violations intercepted</td></tr></tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+<div id="drawer-overlay" onclick="window.closeDrawer()"></div>
+<div id="forensic-drawer">
+<div class="drawer-header">
+<h2 id="drawer-title">&#9673; FORENSIC INSPECTOR</h2>
+<button class="drawer-close" onclick="window.closeDrawer()">&times;</button>
+</div>
+<div class="drawer-body" id="drawer-body">
+<div style="color:var(--dim)">Click an event row, port card, or ASN entry to inspect.</div>
+</div>
+</div>
+
+<div id="bulk-overlay" onclick="window.closeBulk()"></div>
+<div id="bulk-panel">
+<div class="drawer-header">
+<h2 id="bulk-title">&#9654; Bulk Event Stream</h2>
+<button class="drawer-close" onclick="window.closeBulk()">&times;</button>
+</div>
+<div id="bulk-body"><div style="color:var(--dim);text-align:center;padding:20px">Loading...</div></div>
+</div>
+
+<div id="sys-metrics">
+<div class="sys-metric cpu"><span>CPU</span><span class="val" id="metric-cpu">--</span><span>%</span></div>
+<div class="sys-metric mem"><span>MEM</span><span class="val" id="metric-mem">--</span><span>%</span></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function(){'use strict';
+var WS_URL = (location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws';
+var ws, eventCount=0, ipSet=new Set(), exploitCount=0;
+var terminalSeeded=false, terminalSeeding=true;
+var terminalEvents = [];
+var terminalPending = [];
+var terminalAutoScroll = true;
+var portCounts = {22:0,23:0,80:0,445:0,1433:0,3306:0};
+var portKpiEls = {};
+var persistentLayer = L.layerGroup();
+var persistentMarkers = [];
+var MAX_PERSISTENT = 1000;
+var ipTags = {};
+var credAgg = {};
+var ipBruteAgg = {};
+var ipCredMap = {};
+
+var protoColors = {'SSH':'#e05555','TELNET':'#c9a033','SMB':'#c9a033','MSSQL':'#888','MySQL':'#4caf50','HTTP':'#b89dd0'};
+var protoClass = {'SSH':'ssh','TELNET':'telnet','SMB':'smb','MSSQL':'mssql','MySQL':'mysql','HTTP':'http'};
+var portProto = {22:'SSH',23:'TELNET',80:'HTTP',445:'SMB',1433:'MSSQL',3306:'MySQL'};
+
+var map = L.map('map',{zoomControl:true,attributionControl:true,noWrap:true,minZoom:2,maxBounds:[[-90,-180],[90,180]]}).setView([20,0],2);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; <a href="https://carto.com/">CARTO</a>',subdomains:'abcd',maxZoom:19}).addTo(map);
+persistentLayer.addTo(map);
+
+function toGMT7(ts){
+  try{
+    var d=new Date(ts);
+    if(!isNaN(d.getTime())){
+      var gmt7=new Date(d.getTime()+7*3600000);
+      var hh=String(gmt7.getUTCHours()).padStart(2,'0');
+      var mm=String(gmt7.getUTCMinutes()).padStart(2,'0');
+      var ss=String(gmt7.getUTCSeconds()).padStart(2,'0');
+      return hh+':'+mm+':'+ss;
+    }
+  }catch(e){}
+  var m=(ts||'').match(/(\d{2}:\d{2}:\d{2})/);
+  if(m) return m[1];
+  return '--:--:--';
+}
+
+function updateScorecard(){
+  document.getElementById('sc-total').textContent=eventCount;
+  document.getElementById('sc-unique').textContent=ipSet.size;
+  document.getElementById('sc-exploits').textContent=exploitCount;
+}
+
+function addTerminalLine(proto, ts, html, source, id, session, ip, dport){
+  if(terminalSeeding && !terminalSeeded){terminalPending.push({proto:proto,ts:ts,html:html,source:source,id:id||'',session:session||'',ip:ip||'',dport:dport||0});return}
+  if(!terminalSeeded){terminalEvents=[];terminalSeeded=true}
+  var time = toGMT7(ts);
+  var tagCls = protoClass[proto]||'ssh';
+  var dp = dport||0;
+  terminalEvents.push({time:time,proto:proto,html:html,source:source,fid:id||'',fsession:session||'',fip:ip||'',fts:ts||'',tagCls:tagCls,dport:dp});
+  while(terminalEvents.length > 100) terminalEvents.shift();
+  var div = document.createElement('div');div.className='line';
+  div.innerHTML='<span class="ts">['+time+']</span> <span class="proto-tag '+tagCls+'">'+proto+'</span> '+html;
+  makeClickable(div, source, id||'', session||'', ip||'', ts||'', proto, dp);
+  var term = document.getElementById('terminal');
+  term.insertBefore(div, term.firstChild);
+  while(term.childElementCount>100)term.removeChild(term.lastChild);
+  if(terminalAutoScroll)term.scrollTop=0;
+}
+
+function renderCredHeatmap(){
+  var list=[];
+  for(var k in credAgg){list.push({key:k,username:credAgg[k].username,password:credAgg[k].password,count:credAgg[k].count})}
+  list.sort(function(a,b){return b.count-a.count});
+  if(!list.length){document.getElementById('creds-list').innerHTML='<div class="item" style="color:var(--dim);cursor:default">No credentials</div>';return}
+  document.getElementById('creds-list').innerHTML=list.slice(0,10).map(function(c){
+    return '<div class="item" data-cred-user="'+c.username+'" data-cred-pass="'+c.password+'" onclick="window.openCredDetails(\''+c.username+'\',\''+c.password+'\')"><span>'+c.username+' / '+c.password+'</span><span class="count">'+c.count+'</span></div>';
+  }).join('');
+}
+
+function renderIpBruteHeatmap(){
+  var list=[];
+  for(var ip in ipBruteAgg){list.push({ip:ip,count:ipBruteAgg[ip]})}
+  list.sort(function(a,b){return b.count-a.count});
+  if(!list.length){document.getElementById('ipbrute-list').innerHTML='<div class="item" style="color:var(--dim);cursor:default">No IPs</div>';return}
+  document.getElementById('ipbrute-list').innerHTML=list.slice(0,10).map(function(e){
+    return '<div class="item" onclick="window.openIpForensic(\''+e.ip+'\')"><span>'+e.ip+ipTagHtml(e.ip)+'</span><span class="count">'+e.count+'</span></div>';
+  }).join('');
+}
+
+function makeClickable(el, source, id, session, ip, ts, proto, port){
+  el.dataset.fsource=source;
+  el.dataset.fid=id||'';
+  el.dataset.fsession=session||'';
+  el.dataset.fip=ip||'';
+  el.dataset.fts=ts||'';
+  el.dataset.fproto=proto||'';
+  el.dataset.dport=port||'0';
+  el.addEventListener('click',function(e){
+    e.stopPropagation();
+    openForensic(source,id||'',session||'',ip||'',ts||'',proto||'');
+  });
+}
+
+function getPortKey(p){return{22:'ssh',23:'telnet',80:'http',445:'smb',1433:'mssql',3306:'mysql'}[p]||'ssh'}
+
+function seedTerminalLine(proto, ts, html, source, id, session, ip, dport){
+  var tagCls = protoClass[proto]||'ssh';
+  var dp = dport||0;
+  terminalEvents.push({time:ts||'--',proto:proto,html:html,source:source,fid:id||'',fsession:session||'',fip:ip||'',fts:ts||'',tagCls:tagCls,dport:dp});
+  while(terminalEvents.length > 100) terminalEvents.shift();
+  var div = document.createElement('div');div.className='line';
+  div.innerHTML='<span class="ts">['+(ts||'--')+']</span> <span class="proto-tag '+tagCls+'">'+proto+'</span> '+html;
+  makeClickable(div, source, id||'', session||'', ip||'', ts||'', proto, dp);
+  var term = document.getElementById('terminal');
+  term.insertBefore(div, term.firstChild);
+  while(term.childElementCount>100)term.removeChild(term.lastChild);
+}
+
+function addDionaeaRow(ev){
+  var body = document.getElementById('dionaea-tbody');
+  var dq = body.querySelector('tr td[colspan]'); if(dq) dq.parentElement.remove();
+  var ts = toGMT7(ev.timestamp);
+  var svc = (ev.protocol||'?') + ' :' + (ev.dst_port||0);
+  var pay = (ev.payload_size||0) + 'b';
+  if(ev.payload_hex && ev.payload_hex.length > 0) pay += ' ' + ev.payload_hex.substring(0, 24);
+  var tr = document.createElement('tr');
+  tr.innerHTML = '<td class="ts-cell">'+ts+'</td><td class="ip-cell">'+(ev.src_ip||'?')+ipTagHtml(ev.src_ip)+'</td><td class="svc-cell">'+svc+'</td><td class="pay-cell" title="'+pay+'">'+pay+'</td>';
+  makeClickable(tr, 'dionaea', ev.id||'', '', ev.src_ip||'', ev.timestamp||'', ev.protocol||'', ev.dst_port||0);
+  body.insertBefore(tr, body.firstChild);
+  while(body.childElementCount > 100) body.removeChild(body.lastChild);
+}
+
+function addNginxRow(ev){
+  var body = document.getElementById('nginx-tbody');
+  var dq = body.querySelector('tr td[colspan]'); if(dq) dq.parentElement.remove();
+  var ts = toGMT7(ev.timestamp);
+  var uri = (ev.method||'') + ' ' + (ev.path||'/');
+  if(uri.length > 60) uri = uri.substring(0, 57) + '...';
+  var tls = '-';
+  if(ev.ssl_protocol && ev.ssl_cipher) tls = ev.ssl_protocol + ' / ' + ev.ssl_cipher;
+  else if(ev.tls_probe) tls = 'TLS ClientHello (probe)';
+  var tr = document.createElement('tr');
+  tr.innerHTML = '<td class="ts-cell">'+ts+'</td><td class="ip-cell">'+(ev.src_ip||'?')+ipTagHtml(ev.src_ip)+'</td><td class="uri-cell" title="'+(ev.path||'')+'">'+uri+'</td><td class="tls-cell">'+tls+'</td>';
+  makeClickable(tr, 'nginx', '', '', ev.src_ip||'', ev.timestamp||'', 'HTTP', 80);
+  body.insertBefore(tr, body.firstChild);
+  while(body.childElementCount > 100) body.removeChild(body.lastChild);
+}
+
+function handleEvent(ev){
+  console.log('[honeypot] event:', ev.source, ev.eventid||ev.method||'', ev.src_ip);
+  var ip=ev.src_ip||'0.0.0.0';
+  var dport=ev.dst_port||0;
+
+  if(ev.source==='cowrie'){
+    var proto=(ev.protocol||'SSH').toUpperCase();
+    var port=dport||22;
+    var pw=ev.password||'',un=ev.username||'',cmd=ev.command||'',sid=ev.session||'';
+    var am=ev.auth_method||'';
+    if(un||pw||am){var credKey=un+':'+(pw||am);if(!credAgg[credKey])credAgg[credKey]={username:un,password:pw||am,count:0};credAgg[credKey].count++;ipBruteAgg[ip]=(ipBruteAgg[ip]||0)+1;if(!ipCredMap[ip])ipCredMap[ip]={};ipCredMap[ip][credKey]=(ipCredMap[ip][credKey]||0)+1;renderCredHeatmap();renderIpBruteHeatmap();
+    var loginHtml = ip+' <span class="cred">-> Attempted Login [user: '+un+' / pass: '+(pw||('PUBKEY:'+am))+']</span>';
+    addTerminalLine(proto,ev.timestamp,loginHtml,'cowrie',ev.eventid||'',sid,ip,port);eventCount++;ipSet.add(ip);geoFlashAndPin(ip,protoColors[proto]||'#f85149',proto)}
+    else if(cmd){addTerminalLine(proto,ev.timestamp,ip+' <span class="cmd">> '+cmd+'</span>','cowrie',ev.eventid||'',sid,ip,port);eventCount++;ipSet.add(ip);geoFlashAndPin(ip,protoColors[proto]||'#f85149',proto)}
+  }
+  else if(ev.source==='dionaea'){
+    addDionaeaRow(ev);
+    eventCount++;ipSet.add(ip);
+    geoFlashAndPin(ip,protoColors[(ev.protocol||'UNKNOWN').toUpperCase()]||'#d29922',(ev.protocol||'UNKNOWN').toUpperCase());
+  }
+  else if(ev.source==='nginx'){
+    addNginxRow(ev);
+    exploitCount++;document.getElementById('sc-exploits').textContent=exploitCount;eventCount++;ipSet.add(ip);
+    geoFlashAndPin(ip,'#d2a8ff','HTTP');
+  }
+  updateScorecard();
+  if(dport>0){portCounts[dport]=(portCounts[dport]||0)+1;var kpiEl=document.getElementById('kpi-'+getPortKey(dport));if(kpiEl)kpiEl.textContent=portCounts[dport]}
+}
+
+function connectWS(){
+  console.log('[honeypot] WebSocket connecting to', WS_URL);
+  ws=new WebSocket(WS_URL);
+  ws.onopen=function(){console.log('[honeypot] WebSocket connected, live feed active');};
+  ws.onclose=function(){console.log('[honeypot] WebSocket closed, reconnecting in 3s');setTimeout(connectWS,3000)};
+  ws.onerror=function(e){console.log('[honeypot] WebSocket error');try{ws.close()}catch(e){}};
+  ws.onmessage=function(msg){try{var ev=JSON.parse(msg.data);handleEvent(ev)}catch(e){console.log('[honeypot] WebSocket msg error:', e.message)}};
+}
+
+function updatePortKPI(data){
+  var ports=data.port_breakdown||{};
+  var pd=data.protocol_distribution||{};
+  portCounts[22] = ports['22 (SSH)']||pd['SSH']||pd['SSH/TELNET']||0;
+  portCounts[23] = ports['23 (TELNET)']||pd['TELNET']||0;
+  portCounts[80] = ports['80 (HTTP)']||pd['HTTP']||0;
+  portCounts[445] = ports['445 (SMB)']||pd['SMB']||0;
+  portCounts[1433] = ports['1433 (MSSQL)']||pd['MSSQL']||0;
+  portCounts[3306] = ports['3306 (MySQL)']||pd['MySQL']||0;
+  document.getElementById('kpi-ssh').textContent=portCounts[22];
+  document.getElementById('kpi-telnet').textContent=portCounts[23];
+  document.getElementById('kpi-http').textContent=portCounts[80];
+  document.getElementById('kpi-smb').textContent=portCounts[445];
+  document.getElementById('kpi-mssql').textContent=portCounts[1433];
+  document.getElementById('kpi-mysql').textContent=portCounts[3306];
+}
+
+function liveFlash(lat,lng,color){
+  var el = document.createElement('div');
+  el.style.cssText='position:absolute;pointer-events:none;width:0;height:0';
+  var marker = L.circleMarker([lat,lng],{radius:0,color:color,fillColor:color,fillOpacity:1.0,weight:4,opacity:1.0}).addTo(map);
+  var r=0;
+  var glow = L.circleMarker([lat,lng],{radius:0,color:color,fillColor:'transparent',fillOpacity:0,weight:1.5,opacity:0.6}).addTo(map);
+  var interval=setInterval(function(){
+    r+=4;try{marker.setRadius(r);glow.setRadius(r+4);glow.setStyle({opacity:Math.max(0,1-r/24)})}catch(e){clearInterval(interval)}
+    if(r>24){clearInterval(interval);try{map.removeLayer(marker);map.removeLayer(glow)}catch(e){}}
+  },30);
+  setTimeout(function(){try{clearInterval(interval);map.removeLayer(marker);map.removeLayer(glow)}catch(e){}},4000);
+}
+
+function addPersistent(lat,lng,color,label){
+  var m = L.circleMarker([lat,lng],{radius:3,color:color,fillColor:color,fillOpacity:0.35,weight:1,opacity:0.6,className:'pulse-dot'}).bindTooltip(label||'',{direction:'top',offset:[0,-4],opacity:0.7,className:'map-tip'});
+  persistentLayer.addLayer(m);persistentMarkers.push(m);
+  while(persistentMarkers.length>MAX_PERSISTENT){var old=persistentMarkers.shift();persistentLayer.removeLayer(old)}
+}
+
+function classifyIp(orgStr){
+  if(!orgStr) return '';
+  var u=orgStr.toUpperCase();
+  if(/DIGITALOCEAN|AMAZON|AWS|GOOGLE|LINODE|VULTR|HETZNER|OVH|ALIBABA|TENCENT|CHOOPA|QUADRANET|BUYVM|RAMNODE|HOSTWINDS|LEASEWEB|SCALEWAY|CLOUDFLARE|AKAMAI/.test(u))return'CLOUD';
+  if(/TOR|VPN|PROXY|EXIT|NORDVPN|EXPRESSVPN|PROTONVPN|MULLVAD|HIDEMYASS|PIA|SURFSHARK|CYBERGHOST/.test(u))return'VPN';
+  return'RESIDENTIAL';
+}
+
+function ipTagHtml(ip){
+  var t=ipTags[ip]||'';
+  if(!t)return'';
+  var c='var(--orange)';if(t==='CLOUD')c='var(--accent)';else if(t==='VPN')c='var(--purple)';
+  return' <span style="color:'+c+';font-size:8px;font-weight:700">['+t+']</span>';
+}
+
+function geoFlashAndPin(ip,color,protoStr){
+  fetch('/api/geo?ip='+encodeURIComponent(ip)).then(function(r){return r.json()}).then(function(d){
+    if(!d.lat||!d.lon)return;
+    liveFlash(d.lat,d.lon,color);
+    var tag=classifyIp(d.org||d.isp||'');
+    if(tag)ipTags[ip]=tag;
+    addPersistent(d.lat,d.lon,color,(d.countryCode||'')+' '+ip);
+  }).catch(function(e){});
+}
+
+function openForensic(source,id,session,ip,ts,proto){
+  var drawer=document.getElementById('forensic-drawer');
+  var overlay=document.getElementById('drawer-overlay');
+  var body=document.getElementById('drawer-body');
+  document.getElementById('drawer-title').innerHTML='&#9673; FORENSIC INSPECTOR';
+  body.innerHTML='<div style="color:var(--dim);text-align:center;padding:20px">Loading forensic data...</div>';
+  drawer.classList.add('open');overlay.classList.add('open');
+  var params='source='+encodeURIComponent(source);
+  if(source==='dionaea')params+='&id='+encodeURIComponent(id);
+  else if(source==='cowrie')params+='&session='+encodeURIComponent(session);
+  else params+='&ip='+encodeURIComponent(ip)+'&ts='+encodeURIComponent(ts);
+  fetch('/api/event-details?'+params).then(function(r){return r.json()}).then(function(d){
+    body.innerHTML='';var dd=d.details||{};
+    var metaHtml='<div class="drawer-section"><h4>Event Metadata</h4>';
+    metaHtml+='<div class="kv"><span class="key">Source:</span><span class="val">'+(d.source||'').toUpperCase()+'</span></div>';
+    if(dd.src_ip)metaHtml+='<div class="kv"><span class="key">IP:</span><span class="val">'+dd.src_ip+'</span></div>';
+    if(dd.protocol)metaHtml+='<div class="kv"><span class="key">Protocol:</span><span class="val">'+dd.protocol+'</span></div>';
+    if(dd.dst_port)metaHtml+='<div class="kv"><span class="key">Port:</span><span class="val">'+dd.dst_port+'</span></div>';
+    if(dd.timestamp)metaHtml+='<div class="kv"><span class="key">Timestamp:</span><span class="val">'+dd.timestamp+'</span></div>';
+    if(dd.duration)metaHtml+='<div class="kv"><span class="key">Duration:</span><span class="val">'+dd.duration+'s</span></div>';
+    if(dd.client_version)metaHtml+='<div class="kv"><span class="key">Client:</span><span class="val">'+dd.client_version+'</span></div>';
+    if(dd.hassh)metaHtml+='<div class="kv"><span class="key">HASSH:</span><span class="val">'+dd.hassh+'</span></div>';
+    if(dd.payload_size)metaHtml+='<div class="kv"><span class="key">Payload:</span><span class="val">'+dd.payload_size+' bytes</span></div>';
+    if(dd.method)metaHtml+='<div class="kv"><span class="key">Method:</span><span class="val">'+dd.method+'</span></div>';
+    if(dd.path)metaHtml+='<div class="kv"><span class="key">Path:</span><span class="val">'+dd.path+'</span></div>';
+    if(dd.user_agent)metaHtml+='<div class="kv"><span class="key">UA:</span><span class="val">'+dd.user_agent+'</span></div>';
+    if(dd.ssl_protocol)metaHtml+='<div class="kv"><span class="key">TLS Proto:</span><span class="val" style="color:var(--orange)">'+dd.ssl_protocol+'</span></div>';
+    if(dd.ssl_cipher)metaHtml+='<div class="kv"><span class="key">TLS Cipher:</span><span class="val" style="color:var(--orange)">'+dd.ssl_cipher+'</span></div>';
+    if(dd.status)metaHtml+='<div class="kv"><span class="key">Status:</span><span class="val">'+dd.status+'</span></div>';
+    metaHtml+='</div>';body.innerHTML+=metaHtml;
+    if(dd.auth_attempts&&dd.auth_attempts.length){
+      var ah='<div class="drawer-section"><h4>Authentication Log ('+dd.auth_attempts.length+' attempts)</h4><div class="drawer-codeblock">';
+      dd.auth_attempts.forEach(function(a){ah+='<div class="entry"><span class="ts">['+toGMT7(a.timestamp)+']</span> <span style="color:'+(a.result==='success'?'var(--green)':'var(--red)')+'">user: '+a.username+' / pass: '+a.password+' ('+a.result+')</span></div>'});
+      ah+='</div></div>';body.innerHTML+=ah;
+    }
+    if(dd.commands&&dd.commands.length){
+      var ch='<div class="drawer-section"><h4>Terminal Execution Log ('+dd.commands.length+' commands)</h4><div class="drawer-codeblock">';
+      dd.commands.forEach(function(c){ch+='<div class="entry"><span class="ts">['+toGMT7(c.timestamp)+']</span> <span style="color:var(--teal)">$ '+c.input+'</span></div>'});
+      ch+='</div></div>';body.innerHTML+=ch;
+    }
+    if(dd.payload_hex&&dd.payload_hex.length>1){body.innerHTML+='<div class="drawer-section"><h4>Payload Hex Inspector</h4><div class="drawer-codeblock payload">'+dd.payload_hex+'</div></div>'}
+    if(dd.headers&&Object.keys(dd.headers).length){
+      var hh='<div class="drawer-section"><h4>HTTP Header Manifest</h4>';
+      for(var k in dd.headers)hh+='<div class="kv"><span class="key">'+k+':</span><span class="val" style="word-break:break-all">'+dd.headers[k]+'</span></div>';
+      hh+='</div>';body.innerHTML+=hh;
+    }
+    if(dd.raw)body.innerHTML+='<div class="drawer-section"><h4>Raw Log Line</h4><div class="drawer-codeblock">'+dd.raw+'</div></div>';
+    if(!dd.auth_attempts&&!dd.commands&&!dd.payload_hex&&!dd.headers&&!dd.raw)body.innerHTML+='<div class="drawer-section"><div style="color:var(--dim)">No additional forensic data available.</div></div>';
+  }).catch(function(){body.innerHTML='<div style="color:var(--red)">Failed to load forensic data.</div>'});
+}
+
+window.closeDrawer = function(){
+  document.getElementById('forensic-drawer').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('open');
+};
+
+function updateSysMetrics(){
+  fetch('/api/system').then(function(r){return r.json()}).then(function(s){
+    document.getElementById('metric-cpu').textContent=s.cpu||'0';
+    document.getElementById('metric-mem').textContent=s.mem_pct||'0';
+  }).catch(function(e){
+    document.getElementById('terminal').innerHTML='<div class="line" style="color:var(--red)">Fetch error: '+e.message+'</div>';
+  });
+}
+updateSysMetrics();setInterval(updateSysMetrics,8000);
+
+function seedTerminalFromRecent(events){
+  console.log('[honeypot] seedTerminalFromRecent called: events='+(events?events.length:0)+' terminalSeeding='+terminalSeeding+' terminalSeeded='+terminalSeeded+' terminalEvents.length='+terminalEvents.length+' pending.length='+terminalPending.length);
+  var isFirstSeed = !terminalSeeded;
+  if(!events||!events.length){
+    if(terminalEvents.length===0) document.getElementById('terminal').innerHTML='<div class="line" style="color:var(--dim);cursor:default">[Waiting for threat telemetry...]</div>';
+    terminalSeeding=false; terminalSeeded=true;
+    for(var p=0;p<terminalPending.length;p++){var e=terminalPending[p];addTerminalLine(e.proto,e.ts,e.html,e.source,e.id,e.session,e.ip,e.dport)}
+    terminalPending=[];
+    return;
+  }
+  var term = document.getElementById('terminal');
+  if(isFirstSeed) term.innerHTML='';
+  var existingKeys = isFirstSeed ? {} : {};
+  if(!isFirstSeed){
+    for(var k=0;k<terminalEvents.length;k++){existingKeys[terminalEvents[k].fsession+':'+terminalEvents[k].fid]=true}
+  }
+  var cowrieRaw = 0, cowrieAdded = 0, cowrieSkipped = 0;
+  for(var i=events.length-1;i>=0;i--){
+    var ev=events[i];
+    if(ev.source!=='cowrie') continue;
+    cowrieRaw++;
+    var key = (ev.session||'')+':'+(ev.eventid||'');
+    if(existingKeys[key]){cowrieSkipped++;continue}
+    existingKeys[key]=true;
+    cowrieAdded++;
+    var ip=ev.src_ip||'0.0.0.0';
+    var ts=toGMT7(ev.timestamp);
+    var proto=(ev.protocol||'SSH').toUpperCase();
+    var port=(ev.dst_port||22);
+    var pw=ev.password||'',un=ev.username||'',cmd=ev.command||'';
+    var am=ev.auth_method||'';
+    if(un||pw||am){var credKey=un+':'+(pw||am);seedTerminalLine(proto,ts,ip+' <span class="cred">-> Attempted Login [user: '+un+' / pass: '+(pw||('PUBKEY:'+am))+']</span>','cowrie',ev.eventid||'',ev.session||'',ip,port);ipBruteAgg[ip]=(ipBruteAgg[ip]||0)+1;if(!ipCredMap[ip])ipCredMap[ip]={};ipCredMap[ip][credKey]=(ipCredMap[ip][credKey]||0)+1}
+    else if(cmd){seedTerminalLine(proto,ts,ip+' <span class="cmd">> '+cmd+'</span>','cowrie',ev.eventid||'',ev.session||'',ip,port)}
+  }
+  console.log('[honeypot] seedTerminalFromRecent: isFirstSeed='+isFirstSeed+' cowrie raw='+cowrieRaw+' added='+cowrieAdded+' skipped='+cowrieSkipped+' terminal now has='+terminalEvents.length+' lines');
+  terminalSeeded=true;
+  if(terminalEvents.length===0){term.innerHTML='<div class="line" style="color:var(--dim);cursor:default">[No high-signal cowrie interactions yet — awaiting brute-force or exploit attempts]</div>'}
+  if(terminalAutoScroll)term.scrollTop=0;
+  renderIpBruteHeatmap();
+  terminalSeeding=false;
+  for(var p=0;p<terminalPending.length;p++){var e=terminalPending[p];addTerminalLine(e.proto,e.ts,e.html,e.source,e.id,e.session,e.ip,e.dport)}
+  terminalPending=[];
+}
+
+function fetchStats(range){
+  range=range||'48h';
+  fetch('/api/stats?range='+range).then(function(r){return r.json()}).then(function(s){
+    eventCount=s.total_connections||0;
+    if(s.unique_ips&&Array.isArray(s.unique_ips))ipSet=new Set(s.unique_ips);
+    exploitCount=s.web_exploits||0;
+    updateScorecard();
+    if(s.top_credentials&&s.top_credentials.length){
+      s.top_credentials.forEach(function(c){
+        var k=c.username+':'+c.password;
+        credAgg[k]={username:c.username,password:c.password,count:Math.max(credAgg[k]?credAgg[k].count:0,c.count)}
+      });
+      renderCredHeatmap()}
+    else if(!Object.keys(credAgg).length){document.getElementById('creds-list').innerHTML='<div style="color:var(--dim)">No credentials captured yet</div>'}
+    renderIpBruteHeatmap();
+    if(s.unique_ips && !Object.keys(ipBruteAgg).length){
+      s.unique_ips.forEach(function(ip){ipBruteAgg[ip]=(ipBruteAgg[ip]||0)+1});
+      renderIpBruteHeatmap();
+    }
+    updatePortKPI(s);
+  }).catch(function(e){
+    document.getElementById('terminal').innerHTML='<div class="line" style="color:var(--red)">Fetch error: '+e.message+'</div>';
+  });
+}
+
+function fetchHistorical(range){
+  range=range||'48h';
+  persistentLayer.clearLayers();persistentMarkers=[];
+  fetch('/api/historical?range='+range).then(function(r){return r.json()}).then(function(ips){
+    if(!ips||!ips.length)return;
+    var pending=ips.length,batchSize=8,batchIdx=0;
+    function dispatchBatch(){
+      var end=Math.min(batchIdx+batchSize,ips.length);
+      for(var i=batchIdx;i<end;i++){(function(ip,proto,cnt){
+        fetch('/api/geo?ip='+encodeURIComponent(ip)).then(function(r){return r.json()}).then(function(d){
+          if(d.lat&&d.lon){
+            var color=protoColors[proto]||'#8b949e';
+            addPersistent(d.lat,d.lon,color,(d.countryCode||'')+' '+ip);
+          }
+          if(d.org||d.isp){var tag=classifyIp(d.org||d.isp||'');if(tag)ipTags[ip]=tag}
+        }).catch(function(){}).finally(function(){pending--});
+      })(ips[i].ip,ips[i].protocol,ips[i].count)}
+      batchIdx=end;if(batchIdx<ips.length)setTimeout(dispatchBatch,120);
+    }
+    dispatchBatch();
+  }).catch(function(e){
+    document.getElementById('terminal').innerHTML='<div class="line" style="color:var(--red)">Fetch error: '+e.message+'</div>';
+  });
+}
+
+function fetchRecent(range,limit){
+  range=range||'48h';
+  limit=limit||300;
+  console.log('[honeypot] fetchRecent called with range='+range+' limit='+limit);
+  fetch('/api/recent?range='+range+'&limit='+limit).then(function(r){return r.json()}).then(function(events){
+    console.log('[honeypot] fetchRecent got', events.length, 'events');
+    seedTerminalFromRecent(events);
+    document.getElementById('dionaea-tbody').innerHTML='<tr><td colspan="4" style="color:var(--dim);text-align:center">No exploit payloads intercepted</td></tr>';
+    document.getElementById('nginx-tbody').innerHTML='<tr><td colspan="4" style="color:var(--dim);text-align:center">No web violations intercepted</td></tr>';
+    for(var i=events.length-1;i>=0;i--){
+      if(events[i].source==='dionaea') addDionaeaRow(events[i]);
+      else if(events[i].source==='nginx') addNginxRow(events[i]);
+    }
+  }).catch(function(e){
+    console.error('[honeypot] fetchRecent FAILED:', e.message, e);
+    document.getElementById('terminal').innerHTML='<div class="line" style="color:var(--red)">Fetch error: '+e.message+'</div>';
+  });
+}
+
+var _bulkEvents = [];
+var _bulkFilter = 'all';
+
+window.loadMore = function(){
+  document.getElementById('bulk-panel').classList.add('open');
+  document.getElementById('bulk-overlay').classList.add('open');
+  document.getElementById('bulk-body').innerHTML='<div style=\"color:var(--dim);text-align:center;padding:20px\">Loading 3000 rows...</div>';
+  _bulkFilter='all';
+  fetch('/api/recent?range=48h&limit=3000').then(function(r){return r.json()}).then(function(events){
+    _bulkEvents = events;
+    renderBulk();
+  }).catch(function(e){
+    document.getElementById('bulk-body').innerHTML='<div style=\"color:var(--red);text-align:center;padding:20px\">Failed: '+e.message+'</div>';
+  });
+};
+
+// Delegate click for bulk filter buttons
+document.getElementById('bulk-body').addEventListener('click', function(e){
+  var btn = e.target.closest('[data-bulk-src]');
+  if(btn){ _bulkFilter = btn.getAttribute('data-bulk-src'); renderBulk(); }
+});
+
+window.closeBulk = function(){
+  document.getElementById('bulk-panel').classList.remove('open');
+  document.getElementById('bulk-overlay').classList.remove('open');
+};
+
+function toBulkDate(ts){
+  try{
+    var d = new Date(ts);
+    if(!isNaN(d.getTime())){
+      var gmt7 = new Date(d.getTime()+7*3600000);
+      var dd = String(gmt7.getUTCDate()).padStart(2,'0');
+      var mm = String(gmt7.getUTCMonth()+1).padStart(2,'0');
+      var hh = String(gmt7.getUTCHours()).padStart(2,'0');
+      var mi = String(gmt7.getUTCMinutes()).padStart(2,'0');
+      var ss = String(gmt7.getUTCSeconds()).padStart(2,'0');
+      return dd+'/'+mm+' '+hh+':'+mi+':'+ss;
+    }
+  }catch(e){}
+  return '--/-- --:--:--';
+}
+
+function renderBulk(){
+  var events = _bulkEvents;
+  if(_bulkFilter!=='all') events = events.filter(function(e){return e.source===_bulkFilter});
+  var h='<div style=\"display:flex;gap:4px;margin-bottom:8px\" id=\"bulk-filters\">';
+  var btns = [{k:'all',l:'All'},{k:'cowrie',l:'Cowrie'},{k:'dionaea',l:'Dionaea'},{k:'nginx',l:'Nginx'}];
+  for(var b=0;b<btns.length;b++){
+    h+='<button data-bulk-src=\"'+btns[b].k+'\" style=\"padding:2px 8px;border:1px solid var(--border);border-radius:3px;background:'+(btns[b].k===_bulkFilter?'var(--accent);color:#fff':'var(--bg2);color:'+(btns[b].k==='cowrie'?'var(--red)':btns[b].k==='dionaea'?'var(--orange)':'var(--purple)'))+';font-family:inherit;font-size:9px;cursor:pointer;font-weight:700\">'+btns[b].l+'</button>';
+  }
+  h+='</div><table class=\"bulk-table\"><thead><tr><th>TIMESTAMP</th><th>SRC IP</th><th>SOURCE</th><th>DETAILS</th></tr></thead><tbody>';
+  for(var i=0;i<events.length;i++){
+    var e=events[i];
+    var ts=toBulkDate(e.timestamp);
+    var ip=e.src_ip||'?';
+    var src=e.source||'?';
+    var detail='';
+    var un=e.username||'',pw=e.password||'',cmd=e.command||'',am=e.auth_method||'';
+    if(src==='cowrie'){
+      src='<span style=\"color:#f85149;font-weight:700\">COWRIE</span>';
+      if(cmd) detail='CMD: '+cmd;
+      else if(am) detail='PUBKEY: '+am;
+      else detail='AUTH: '+un+(pw?' / '+pw:'');
+    }else if(src==='dionaea'){
+      src='<span style=\"color:#d29922;font-weight:700\">DIONAEA</span>';
+      detail=(e.protocol||'?')+' :'+(e.dst_port||0)+' payload:'+(e.payload_size||0)+'b';
+    }else if(src==='nginx'){
+      src='<span style=\"color:#d2a8ff;font-weight:700\">NGINX</span>';
+      detail=(e.method||'?')+' '+((e.path||'/').length>80?(e.path||'/').substring(0,77)+'...':(e.path||'/'));
+      var tls='';
+      if(e.ssl_protocol&&e.ssl_cipher) tls=' ['+e.ssl_protocol+' / '+e.ssl_cipher+']';
+      else if(e.tls_probe) tls=' [TLS Probe]';
+      detail+=tls;
+    }
+    h+='<tr><td class=\"b-ts\">'+ts+'</td><td class=\"b-ip\">'+ip+'</td><td class=\"b-src\">'+src+'</td><td class=\"b-detail\">'+detail+'</td></tr>';
+  }
+  h+='</tbody></table>';
+  document.getElementById('bulk-body').innerHTML=h;
+  var label = _bulkFilter==='all'?'All':_bulkFilter.charAt(0).toUpperCase()+_bulkFilter.slice(1);
+  document.getElementById('bulk-title').innerHTML='&#9654; Bulk Event Stream ['+label+'] ('+events.length+' rows)';
+}
+
+connectWS();fetchStats('48h');fetchHistorical('48h');fetchRecent('48h');
+// Safety timeout: if fetchRecent never completes, unblock terminal after 10s
+setTimeout(function(){
+  if(terminalSeeding){
+    console.warn('[honeypot] fetchRecent did not complete in 10s — unblocking terminal');
+    terminalSeeding=false;
+    terminalSeeded=true;
+    for(var p=0;p<terminalPending.length;p++){var e=terminalPending[p];addTerminalLine(e.proto,e.ts,e.html,e.source,e.id,e.session,e.ip,e.dport)}
+    terminalPending=[];
+    if(terminalEvents.length===0) document.getElementById('terminal').innerHTML='<div class=\"line\" style=\"color:var(--orange);cursor:default\">[API slow — live events will appear as they arrive]</div>';
+  }
+},10000);
+setInterval(function(){fetchStats('48h')},30000);
+
+document.getElementById('terminal').addEventListener('scroll',function(){
+  var t = this;
+  terminalAutoScroll = (t.scrollTop <= 10);
+});
+
+window.openPayloadDetail = function(payload, proto, size){
+  var drawer=document.getElementById('forensic-drawer');
+  var overlay=document.getElementById('drawer-overlay');
+  var body=document.getElementById('drawer-body');
+  document.getElementById('drawer-title').innerHTML='&#9762; Payload: '+proto+' ('+size+'b)';
+  body.innerHTML='<div class="drawer-section"><h4>Payload Data</h4><div class="drawer-codeblock payload">'+payload+'</div></div>';
+  drawer.classList.add('open');overlay.classList.add('open');
+};
+
+window.openCredDetails = function(username, password){
+  var drawer=document.getElementById('forensic-drawer');
+  var overlay=document.getElementById('drawer-overlay');
+  var body=document.getElementById('drawer-body');
+  document.getElementById('drawer-title').innerHTML='&#9830; Credential: '+username+(password?' / '+password:'');
+  body.innerHTML='<div style="color:var(--dim);text-align:center;padding:20px">Loading credential forensics...</div>';
+  drawer.classList.add('open');overlay.classList.add('open');
+  fetch('/api/credential-details?username='+encodeURIComponent(username)+'&password='+encodeURIComponent(password||''))
+    .then(function(r){return r.json()}).then(function(d){
+      body.innerHTML='';
+      body.innerHTML+='<div class="drawer-section"><h4>Credential Overview</h4>';
+      body.innerHTML+='<div class="kv"><span class="key">Username:</span><span class="val">'+d.username+'</span></div>';
+      body.innerHTML+='<div class="kv"><span class="key">Password:</span><span class="val" style="color:var(--red)">'+(d.password||'(any)')+'</span></div>';
+      body.innerHTML+='<div class="kv"><span class="key">Attempts:</span><span class="val" style="color:var(--orange);font-weight:700">'+d.total_attempts+'</span></div>';
+      if(d.first_seen)body.innerHTML+='<div class="kv"><span class="key">First Seen:</span><span class="val">'+d.first_seen+'</span></div>';
+      if(d.last_seen)body.innerHTML+='<div class="kv"><span class="key">Last Seen:</span><span class="val">'+d.last_seen+'</span></div>';
+      body.innerHTML+='</div>';
+      if(d.top_ips&&d.top_ips.length){
+        var ih='<div class="drawer-section"><h4>Associated IPs</h4>';
+        d.top_ips.forEach(function(e){ih+='<div class="kv"><span class="key">'+e.ip+':</span><span class="val">'+e.count+' attempts</span></div>'});
+        ih+='</div>';body.innerHTML+=ih;
+      }
+      if(d.sessions&&d.sessions.length){
+        var sh='<div class="drawer-section"><h4>Sessions ('+d.sessions.length+')</h4>';
+        d.sessions.slice(0,20).forEach(function(s){
+          sh+='<div style="margin-bottom:6px;padding:4px 6px;background:var(--bg);border:1px solid var(--border);border-radius:3px;font-size:10px">';
+          sh+='<div class="kv"><span class="key">IP:</span><span class="val">'+s.ip+'</span></div>';
+          sh+='<div class="kv"><span class="key">Time:</span><span class="val">'+s.timestamp+'</span></div>';
+          if(s.commands&&s.commands.length){
+            sh+='<div style="color:var(--teal);margin-top:3px">';
+            s.commands.forEach(function(cmd){sh+='<div>> '+cmd.input+'</div>'});
+            sh+='</div>';
+          }
+          sh+='</div>';
+        });
+        sh+='</div>';body.innerHTML+=sh;
+      }
+    }).catch(function(){body.innerHTML='<div style="color:var(--red)">Failed to load credential data.</div>'});
+};
+
+window.openIpForensic = function(ip){
+  var drawer=document.getElementById('forensic-drawer');
+  var overlay=document.getElementById('drawer-overlay');
+  var body=document.getElementById('drawer-body');
+  document.getElementById('drawer-title').innerHTML='&#9673; IP Forensics: '+ip;
+  body.innerHTML='<div style="color:var(--dim);text-align:center;padding:20px">Loading IP intelligence...</div>';
+  drawer.classList.add('open');overlay.classList.add('open');
+  fetch('/api/geo?ip='+encodeURIComponent(ip)).then(function(r){return r.json()}).then(function(geo){
+      body.innerHTML='';
+      body.innerHTML+='<div class="drawer-section"><h4>Network Intelligence</h4>';
+      body.innerHTML+='<div class="kv"><span class="key">IP:</span><span class="val">'+ip+'</span></div>';
+      if(geo.country)body.innerHTML+='<div class="kv"><span class="key">Country:</span><span class="val">'+geo.country+' ('+geo.countryCode+')</span></div>';
+      if(geo.region)body.innerHTML+='<div class="kv"><span class="key">Region:</span><span class="val">'+geo.region+' / '+geo.city+'</span></div>';
+      if(geo.isp)body.innerHTML+='<div class="kv"><span class="key">ISP:</span><span class="val">'+geo.isp+'</span></div>';
+      if(geo.as)body.innerHTML+='<div class="kv"><span class="key">ASN:</span><span class="val">'+geo.as+'</span></div>';
+      if(geo.org)body.innerHTML+='<div class="kv"><span class="key">Org:</span><span class="val">'+geo.org+'</span></div>';
+      body.innerHTML+='<div class="kv"><span class="key">Brute-Force:</span><span class="val" style="color:var(--red);font-weight:700">'+(ipBruteAgg[ip]||0)+' attempts</span></div>';
+      body.innerHTML+='</div>';
+      if(geo.lat&&geo.lon){
+        body.innerHTML+='<div class="drawer-section"><h4>Geolocation</h4>';
+        body.innerHTML+='<div class="kv"><span class="key">Lat:</span><span class="val">'+geo.lat+'</span></div>';
+        body.innerHTML+='<div class="kv"><span class="key">Lon:</span><span class="val">'+geo.lon+'</span></div>';
+        body.innerHTML+='</div>';
+      }
+      var ipCreds = ipCredMap[ip];
+      if(ipCreds && Object.keys(ipCreds).length){
+        var clist=[];for(var k in ipCreds)clist.push({key:k,count:ipCreds[k]});
+        clist.sort(function(a,b){return b.count-a.count});
+        var ch='<div class="drawer-section"><h4>Credentials Used ('+clist.length+')</h4>';
+        clist.forEach(function(c){ch+='<div class="kv"><span class="key">'+c.key+':</span><span class="val" style="color:var(--red)">'+c.count+' attempts</span></div>'});
+        ch+='</div>';body.innerHTML+=ch;
+      }
+    }).catch(function(){body.innerHTML='<div style="color:var(--red)">Failed to load IP data.</div>'});
+};
+
+})();
+</script>
+</body>
+</html>
