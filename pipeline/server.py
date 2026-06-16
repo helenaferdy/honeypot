@@ -387,7 +387,7 @@ async def broadcast_event(event):
 # ─── HTTP API Router ───────────────────────────────────────────────
 
 def get_time_filter(range_param):
-    return "-2 days"
+    return "-1 day"
 
 
 async def api_stats(request):

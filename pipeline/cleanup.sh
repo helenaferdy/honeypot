@@ -21,12 +21,12 @@ cleanup_db() {
         return
     fi
     BEFORE=$(stat -c%s "$DB" 2>/dev/null || echo 0)
-    sqlite3 "$DB" "DELETE FROM auth WHERE timestamp < datetime('now','-2 days');" 2>/dev/null
-    sqlite3 "$DB" "DELETE FROM sessions WHERE starttime < datetime('now','-2 days');" 2>/dev/null
-    sqlite3 "$DB" "DELETE FROM input WHERE timestamp < datetime('now','-2 days');" 2>/dev/null
-    sqlite3 "$DB" "DELETE FROM downloads WHERE timestamp < datetime('now','-2 days');" 2>/dev/null
-    sqlite3 "$DB" "DELETE FROM connections WHERE timestamp < datetime('now','-2 days');" 2>/dev/null
-    sqlite3 "$DB" "DELETE FROM malware_captures WHERE timestamp < datetime('now','-2 days');" 2>/dev/null
+    sqlite3 "$DB" "DELETE FROM auth WHERE timestamp < datetime('now','-1 day');" 2>/dev/null
+    sqlite3 "$DB" "DELETE FROM sessions WHERE starttime < datetime('now','-1 day');" 2>/dev/null
+    sqlite3 "$DB" "DELETE FROM input WHERE timestamp < datetime('now','-1 day');" 2>/dev/null
+    sqlite3 "$DB" "DELETE FROM downloads WHERE timestamp < datetime('now','-1 day');" 2>/dev/null
+    sqlite3 "$DB" "DELETE FROM connections WHERE timestamp < datetime('now','-1 day');" 2>/dev/null
+    sqlite3 "$DB" "DELETE FROM malware_captures WHERE timestamp < datetime('now','-1 day');" 2>/dev/null
     sqlite3 "$DB" "PRAGMA auto_vacuum=FULL; VACUUM;" 2>/dev/null
     AFTER=$(stat -c%s "$DB" 2>/dev/null || echo 0)
     echo "[$(date)] $NAME: cleaned. Size: ${BEFORE}b -> ${AFTER}b"
@@ -35,6 +35,6 @@ cleanup_db() {
 cleanup_db "$COWRIE_DB" "cowrie_history"
 cleanup_db "$DIONAEA_DB" "dionaea_history"
 
-find /opt/honeypot/dionaea/payloads -type f -mtime +2 -delete 2>/dev/null
+find /opt/honeypot/dionaea/payloads -type f -mtime +1 -delete 2>/dev/null
 
 echo "[$(date)] Housekeeping complete"

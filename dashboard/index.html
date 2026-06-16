@@ -196,7 +196,7 @@ h1,h2,h3,h4{font-weight:500;color:var(--text)}
 <div class="card"><div class="value" id="sc-total">0</div><div class="label">TOTAL</div></div>
 <div class="card"><div class="value" id="sc-unique">0</div><div class="label">UNIQUE IPs</div></div>
 <div class="card"><div class="value" id="sc-exploits">0</div><div class="label">WEB EXPLOITS</div></div>
-<div class="card"><div class="value" id="sc-range">48h</div><div class="label">RANGE</div></div>
+<div class="card"><div class="value" id="sc-range">24h</div><div class="label">RANGE</div></div>
 </div>
 </div>
 <div class="map-row">
@@ -637,7 +637,7 @@ function seedTerminalFromRecent(events){
 }
 
 function fetchStats(range){
-  range=range||'48h';
+  range=range||'24h';
   fetch('/api/stats?range='+range).then(function(r){return r.json()}).then(function(s){
     eventCount=s.total_connections||0;
     if(s.unique_ips&&Array.isArray(s.unique_ips))ipSet=new Set(s.unique_ips);
@@ -662,7 +662,7 @@ function fetchStats(range){
 }
 
 function fetchHistorical(range){
-  range=range||'48h';
+  range=range||'24h';
   persistentLayer.clearLayers();persistentMarkers=[];
   fetch('/api/historical?range='+range).then(function(r){return r.json()}).then(function(ips){
     if(!ips||!ips.length)return;
@@ -687,7 +687,7 @@ function fetchHistorical(range){
 }
 
 function fetchRecent(range,limit){
-  range=range||'48h';
+  range=range||'24h';
   limit=limit||300;
   console.log('[honeypot] fetchRecent called with range='+range+' limit='+limit);
   fetch('/api/recent?range='+range+'&limit='+limit).then(function(r){return r.json()}).then(function(events){
@@ -713,7 +713,7 @@ window.loadMore = function(){
   document.getElementById('bulk-overlay').classList.add('open');
   document.getElementById('bulk-body').innerHTML='<div style=\"color:var(--dim);text-align:center;padding:20px\">Loading 3000 rows...</div>';
   _bulkFilter='all';
-  fetch('/api/recent?range=48h&limit=3000').then(function(r){return r.json()}).then(function(events){
+  fetch('/api/recent?range=24h&limit=3000').then(function(r){return r.json()}).then(function(events){
     _bulkEvents = events;
     renderBulk();
   }).catch(function(e){
@@ -788,7 +788,7 @@ function renderBulk(){
   document.getElementById('bulk-title').innerHTML='&#9654; Bulk Event Stream ['+label+'] ('+events.length+' rows)';
 }
 
-connectWS();fetchStats('48h');fetchHistorical('48h');fetchRecent('48h');
+connectWS();fetchStats('24h');fetchHistorical('24h');fetchRecent('24h');
 // Safety timeout: if fetchRecent never completes, unblock terminal after 10s
 setTimeout(function(){
   if(terminalSeeding){
@@ -800,7 +800,7 @@ setTimeout(function(){
     if(terminalEvents.length===0) document.getElementById('terminal').innerHTML='<div class=\"line\" style=\"color:var(--orange);cursor:default\">[API slow — live events will appear as they arrive]</div>';
   }
 },10000);
-setInterval(function(){fetchStats('48h')},30000);
+setInterval(function(){fetchStats('24h')},30000);
 
 document.getElementById('terminal').addEventListener('scroll',function(){
   var t = this;
