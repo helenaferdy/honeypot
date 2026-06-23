@@ -16,7 +16,10 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 a{color:var(--accent);text-decoration:none}
 h1,h2,h3,h4{font-weight:500;color:var(--text)}
 .grid{display:grid;grid-template-columns:220px 1fr;height:100vh;overflow:hidden}
-.sidebar{background:var(--bg2);border-right:1px solid var(--border);padding:16px;overflow-y:auto}
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);padding:0;overflow-y:auto;display:flex;flex-direction:column}
+.sidebar-header{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 0}
+.sidebar-hamburger{display:none}
+.sidebar-content{padding:16px;flex:1}
 .sidebar h1{font-size:13px;font-weight:700;color:var(--dim);margin-bottom:16px;letter-spacing:1px}
 .sidebar h1 span{color:var(--green)}
 .sensor-block{margin-bottom:14px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px}
@@ -163,7 +166,12 @@ h1,h2,h3,h4{font-weight:500;color:var(--text)}
 
 @media(max-width:768px){
 .grid{grid-template-columns:1fr}
-.sidebar{border-right:none;border-bottom:1px solid var(--border);max-height:30vh;overflow-y:auto;padding:10px}
+.sidebar{border-right:none;border-bottom:1px solid var(--border);padding:0}
+.sidebar-header{padding:8px 10px 8px 10px}
+.sidebar-hamburger{display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--dim);font-size:16px;cursor:pointer;font-family:inherit}
+.sidebar.collapsed .sidebar-content{display:none}
+.sidebar:not(.collapsed) .sidebar-content{display:block}
+.sidebar-content{padding:10px}
 .sidebar h1{font-size:11px;margin-bottom:8px}
 .sensor-block{margin-bottom:8px;padding:6px 8px}
 .sensor-block h3{font-size:9px}
@@ -191,10 +199,14 @@ body{font-size:11px}
 }
 </style>
 </head>
-<body>
+ <body>
 <div class="grid">
-<aside class="sidebar">
+<aside class="sidebar collapsed">
+<div class="sidebar-header">
 <h1>&#9608; THREAT <span>OPS</span></h1>
+<button class="sidebar-hamburger" onclick="this.closest('.sidebar').classList.toggle('collapsed')">&#9776;</button>
+</div>
+<div class="sidebar-content">
 <div class="sys-info-box">
 <div class="sys-info-body">
 <div class="sys-info-desc">A live Ubuntu VPS honeypot capturing real-time internet-wide exploit attempts, brute-force campaigns, and malware stagers across SSH, Telnet, SMB, MSSQL, MySQL, and HTTP attack surfaces.</div>
@@ -217,6 +229,7 @@ body{font-size:11px}
 <div class="label">HTTP Application-Layer Trap</div>
 <div class="ports">BIND: :80 :443</div>
 <p>Transparently intercepts HTTP/HTTPS scanner traffic. Routes malicious URI patterns into forensic signature logs with TLS handshake telemetry. Serves decoy SSL cert to raw IP probes.</p>
+</div>
 </div>
 </aside>
 <main class="main">
