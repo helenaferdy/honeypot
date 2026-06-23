@@ -160,6 +160,35 @@ h1,h2,h3,h4{font-weight:500;color:var(--text)}
 .sys-info-desc{font-size:9px;color:var(--dim);line-height:1.5;margin-bottom:6px}
 .sys-info-stats{display:flex;gap:6px;font-size:9px;color:var(--dim);flex-wrap:wrap}
 .sys-info-stats b{font-weight:700}
+
+@media(max-width:768px){
+.grid{grid-template-columns:1fr}
+.sidebar{border-right:none;border-bottom:1px solid var(--border);max-height:30vh;overflow-y:auto;padding:10px}
+.sidebar h1{font-size:11px;margin-bottom:8px}
+.sensor-block{margin-bottom:8px;padding:6px 8px}
+.sensor-block h3{font-size:9px}
+.sensor-block p{display:none}
+.main{padding:8px;gap:8px}
+.scorecard-inner{grid-template-columns:repeat(2,1fr)}
+.card{padding:4px 6px;gap:4px}
+.card .value{font-size:16px}
+.card .label{font-size:7px}
+.map-row{grid-template-columns:1fr}
+.map-panel #map{height:180px}
+.telemetry-inner{height:auto}
+.row2{grid-template-columns:1fr}
+.panel-header{padding:3px 8px;font-size:10px}
+.terminal{height:200px}
+.svc-table{max-height:200px}
+.svc-table td,.svc-table th{font-size:8px;padding:2px 4px}
+.port-kpi-card{padding:6px 8px}
+.port-kpi-card .port-num{font-size:11px}
+.port-kpi-card .count-num{font-size:15px}
+#forensic-drawer{width:100vw}
+#bulk-panel{width:100vw;max-width:100vw}
+.sys-info-desc{font-size:8px}
+body{font-size:11px}
+}
 </style>
 </head>
 <body>
